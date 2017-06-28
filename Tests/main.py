@@ -67,12 +67,14 @@ def main(inImage):
         # from the probability distribution
         trial = SampleImage(recon, 10)
 
-        ##  Calculate energy by equation (3)
+        #------------------------------------
+        # Calculate energy by equation (3)
         D_star = tr.radon(trial, theta=thetas)
         normD_star = D_star / abs(np.sum(D_star, axis=0))
         trial_energy = np.sum(np.abs(normD - normD_star))
 
-        ##  Establish probability of excepting this configuration
+        #-----------------------------------------------------------
+        # Establish probability of excepting this configuration
         try:
             prob = np.min([1., np.exp(E/T)/np.exp(trial_energy/T)])
         except(OverflowError):
@@ -82,7 +84,8 @@ def main(inImage):
             print "Value Error"
             prob = 1
 
-        ##  Base on above probability roll dice see if except
+        #----------------------------------------------------
+        # Base on above probability roll dice see if except
         roll = np.random.rand()
         ###   if except, renew energy, reduce temperature
         if (roll <= prob):
@@ -91,8 +94,10 @@ def main(inImage):
             T -= 1
             print "Current E %.05f  dE %.05f excepted at prob: %.2f"%(E, dE, prob)
 
-        ###   else, do nothing
 
+    #==============================================
+    # Plot Results
+    #==============================================
     fig = plt.figure()
     ax1 = fig.add_subplot(221)
     ax2 = fig.add_subplot(222)
@@ -105,6 +110,19 @@ def main(inImage):
 
 
 def PlotGaussianFit(reconFull, reconHalf):
+    """
+    Plot the histogram and the gaussian mixture model fitting result
+
+    :param reconFull: Image1
+    :param reconHalf: Image2, use half of the projections
+    :return:
+    """
+    #============================================
+    # Setting up the figure
+    #---------------------------------------------
+    # Displaying a total of four subplots, two
+    # holds the image inputs two holds the
+    # histogram generate from them
     fig = plt.figure()
     ax1 = fig.add_subplot(221)
     ax2 = fig.add_subplot(222)
@@ -112,42 +130,53 @@ def PlotGaussianFit(reconFull, reconHalf):
     ax4 = fig.add_subplot(224)
     ax1.imshow(reconFull, cmap="Greys_r")
     ax2.imshow(reconHalf, cmap="Greys_r")
-    # ax3.imshow(reconHalf*2, cmap="Greys_r")
-    # ax4.imshow(recon, cmap="Greys_r")
+
     histhalf = ax4.hist(reconHalf.flatten(), alpha=0.5, bins=200, normed=True)
     histfull = ax3.hist(reconFull.flatten(), alpha=0.5, bins=200, normed=True)
-    # ax3.set_ylim([0, 10000])
-    # ax4.set_ylim([0, 10000])
+
+    ax1.set_title("Image ReconFull")
+    ax2.set_title("Image ReconHalf")
     ax3.set_title("Hist ReconFull")
     ax4.set_title("Hist ReconHalf")
+
+    #--------------------------
+    # Maximize the plot window
     figManager = plt.get_current_fig_manager()
     figManager.window.showMaximized()
-    # plt.show()
 
-    print "Fitting Gaussian mixtures"
+    # ============================================
+    # Gaussian fitting
+    #-------------------------------
+    # Fit gaussian mixture for full
     initGuess = GFitter.SKLearnFitter(reconFull.flatten(), numOfGaussians=[2])  # initial fit
     initGuess = np.array(initGuess)
-    res = GFitter.Fitter1D(histfull[0], histfull[1][:-1], energy='distancesq' ,
+    resfull = GFitter.Fitter1D(histfull[0], histfull[1][:-1], energy='distancesq' ,
                            numOfGaussians=2, initialGuess=initGuess, removeDistinct=True)
-    resy = np.sum(np.array([res[i][0] * GFitter.Gaussian(histfull[1][:-1], res[i][1], res[i][2])
+    resfully = np.sum(np.array([resfull[i][0] * GFitter.Gaussian(histfull[1][:-1], resfull[i][1], resfull[i][2])
                             for i in xrange(2)]), axis=0)
-    ax3.plot(histfull[1][:-1], resy)
 
-    print res
 
+    #-------------------------------------------
+    # Fix Gaussian mixture for half
     initGuess = GFitter.SKLearnFitter(reconHalf.flatten(), numOfGaussians=[2])
     initGuess = np.array(initGuess)
-    res = GFitter.Fitter1D(histhalf[0], histhalf[1][:-1], energy='distancesq',
+    reshalf = GFitter.Fitter1D(histhalf[0], histhalf[1][:-1], energy='distancesq',
                            numOfGaussians=2, initialGuess=initGuess, removeDistinct=True)
-    resy = np.sum(np.array([res[i][0] * GFitter.Gaussian(histhalf[1][:-1], res[i][1], res[i][2])
+    reshalfy = np.sum(np.array([reshalf[i][0] * GFitter.Gaussian(histhalf[1][:-1], reshalf[i][1], reshalf[i][2])
                             for i in xrange(2)]), axis=0)
-    ax4.plot(histhalf[1][:-1], resy)
-    print res
+
+    print reshalf
+    print resfull
+
+    #--------------------------------------------
+    # Finish the remaining plot
+    ax3.plot(histfull[1][:-1], resfully)
+    ax4.plot(histhalf[1][:-1], reshalfy)
     plt.show()
 
 
 if __name__ == '__main__':
-    n = 128
+    n = 100
     filename = "../TestData/LCTSP.nii.gz"
     input = sitk.GetArrayFromImage(sitk.ReadImage(filename))
     input[input == -3024] = 0

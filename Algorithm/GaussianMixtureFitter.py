@@ -9,6 +9,28 @@ def Gaussian(x, mu, sd):
 
 
 def RemoveDistinctValues(input, threshold):
+    """
+    Description
+    -----------
+
+      This function removes distinct points on a curve which
+      is sharply larger than its neighbour by identifying
+      whether it is (threshold - 1)*100% larger/smaller than
+      its neighbour and replace it with the average value
+      of its two neighbours.
+
+    Examples
+    --------
+
+      >>> input = [1,2,3,4,5,100,7,8,9]
+      >>> output = RemoveDistinctValues(input, 1.5)
+      >>> print output # show [1,2,3,4,5,6,7,8,9]
+
+
+    :param input:       Curve to be processed
+    :param threshold:   Threshold value, must be > 1.
+    :return:
+    """
     if (threshold < 1):
         raise ValueError("Threshold must be larger then 1.")
 
@@ -20,6 +42,19 @@ def RemoveDistinctValues(input, threshold):
     return input
 
 def GaussianSmoothCurve(input, inDomain, radius):
+    """
+    Descriptions
+    ------------
+
+      This function use Gaussian convolution to smooth the input.
+      The Gaussian Kernel is built to have the same shape as
+      the input, so the curve is smoothed with doubled resolution
+
+    :param input:       Curve to smooth
+    :param inDomain:    Domain of the smoothed curve
+    :param radius:      Smooth radius
+    :return:
+    """
 
     x = np.linspace(inDomain[0], inDomain[-1], input.shape[0])
     kernel = Gaussian(x, 0, radius)
@@ -32,7 +67,8 @@ def GaussianSmoothCurve(input, inDomain, radius):
 def Fitter1D(inCurve, inDomain=None, initialGuess=None, energy='distancesq', numOfGaussians=2, smoothing=False,
              removeDistinct = False):
     """
-    Description:
+    Descriptions
+    ------------
 
       Fit the input with a guassian mixture, i.e:
 
@@ -41,7 +77,8 @@ def Fitter1D(inCurve, inDomain=None, initialGuess=None, energy='distancesq', num
       This function use energy minimization for curve fitting, it is
       recommended to use SKLearnFitter for finding an initial guess.
 
-    Details:
+    Details
+    -------
 
       Available energy functions:
       - Squared Distance ('distancesq')
@@ -54,14 +91,15 @@ def Fitter1D(inCurve, inDomain=None, initialGuess=None, energy='distancesq', num
                 StepFunc(y, K) = 1E5 ; otherwise
           Written to penalize sharp changes.
 
-    Return:
+    Return
+    ------
 
         [(c_1, mu_1, sd_1), ... ,(c_n, mu_n, sd_n)]
 
-      c_i  is the weight of each gaussian
-      mu_i is the normal of each gaussian
-      sd_i is the standard diviation f each gaussian
-      n    is number of gaussians
+      >>> c_i  # the weight of each gaussian
+      >>> mu_i # the normal of each gaussian
+      >>> sd_i # the standard diviation f each gaussian
+      >>> n    # number of gaussians
 
     :param inCurve:         Input numpy array with uniform domain
     :param inDomain:        Evaluation domain of the input curve
@@ -77,7 +115,7 @@ def Fitter1D(inCurve, inDomain=None, initialGuess=None, energy='distancesq', num
     energyList = ['distancesq', 'absdistance', 'smoothdistsq']
     if (energyList.count(energy) == 0):
         raise ValueError("Currently available energy functions are %s"%energyList)
-    if (inDomain == None):
+    if (inDomain is None):
         inDomain = np.linspace(0, inCurve.shape[0], inCurve.shaspe[0])
     if inDomain.shape != inCurve.shape:
         raise ArithmeticError("Input curve cannot have different shape as domain!")
@@ -124,7 +162,7 @@ def Fitter1D(inCurve, inDomain=None, initialGuess=None, energy='distancesq', num
     #====================================================================
     #-----------------------------------
     # initial guess
-    if (initialGuess == None):
+    if (initialGuess is None):
         initialGuess = np.zeros([numOfGaussians, 3])
         initialGuess[:,2] = 1
 
@@ -147,7 +185,8 @@ def Fitter1D(inCurve, inDomain=None, initialGuess=None, energy='distancesq', num
 
 def SKLearnFitter(inData, numOfGaussians=[2]):
     """
-    Descriptions:
+    Descriptions
+    ------------
 
       This function wraps the sklearn gaussian mixture model fitter. It is good as
       an initial guess finder for the Fitter1D function. The output is normed, and to
@@ -156,14 +195,15 @@ def SKLearnFitter(inData, numOfGaussians=[2]):
       In some cases, this function fits better than the distance minimization. However,
       this method doesn't not account for very distinct values.
 
-    Return:
+    Return
+    ------
 
         [(c_1, mu_1, sd_1), ... ,(c_n, mu_n, sd_n)]
 
-      c_i  is the weight of each gaussian
-      mu_i is the normal of each gaussian
-      sd_i is the standard diviation f each gaussian
-      n    is number of gaussians
+      >>> c_i  # the weight of each gaussian
+      >>> mu_i # the normal of each gaussian
+      >>> sd_i # the standard diviation f each gaussian
+      >>> n    # number of gaussians
 
     :param inData:          This should be a numpy data set, with each row a datapoint.
     :param numOfGaussians:  A sequence of integer deciding no of gaussian used.
