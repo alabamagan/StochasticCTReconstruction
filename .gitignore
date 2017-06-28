@@ -1,7 +1,20 @@
+#====================
+# Customs
+#====================
+TestData
+
+
+#====================
+# Python Related
+#====================
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Pycharm
+.idea/*
 
 # C extensions
 *.so
