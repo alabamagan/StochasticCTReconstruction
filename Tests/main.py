@@ -30,8 +30,17 @@ def SampleImage(prob, sd):
     return np.random.normal(prob, sd)
 
 
+# Use wat to cal the prior?
+# Current enerty, current probability, GMM trend
+def CalculatePrior(curPro, GMM_half, GMM_full):
+    pair = GFitter.GaussianComponenetMatching(GMM_half, GMM_full)
+    if len(pair < len(GMM_full)):
+        raise ArithmeticError("Matching failed")
+    return prob, sd
+
+
 def main(inImage):
-    N = 65
+    N = 128
 
     #====================================================================
     # Preprocessing
@@ -45,13 +54,14 @@ def main(inImage):
 
     #--------------------------------------------------------------------
     # Filtered back projection based on N projectionsm, use ramp filter
+    reconTri = tr.iradon(D[:,::3], theta=thetas[::3], circle=True)
     reconHalf = tr.iradon(D[:,::2],theta=thetas[::2], circle=True)
     reconFull = tr.iradon(D, theta=thetas, circle=True)
     recon = reconHalf*reconFull/np.mean(reconHalf)
 
     #-------------------------------------------
     # Plot the reconstruction images
-    PlotGaussianFit(reconFull, reconHalf)
+    PlotGaussianFit(reconFull, reconHalf, reconTri)
     return
 
     #===========================================
@@ -109,7 +119,7 @@ def main(inImage):
     pass
 
 
-def PlotGaussianFit(reconFull, reconHalf):
+def PlotGaussianFit(*reconImages):
     """
     Plot the histogram and the gaussian mixture model fitting result
 
@@ -123,60 +133,42 @@ def PlotGaussianFit(reconFull, reconHalf):
     # Displaying a total of four subplots, two
     # holds the image inputs two holds the
     # histogram generate from them
-    fig = plt.figure()
-    ax1 = fig.add_subplot(221)
-    ax2 = fig.add_subplot(222)
-    ax3 = fig.add_subplot(223)
-    ax4 = fig.add_subplot(224)
-    ax1.imshow(reconFull, cmap="Greys_r")
-    ax2.imshow(reconHalf, cmap="Greys_r")
+    numOfImages = len(reconImages)
+    fig = plt.figure(figsize=(8, 16), dpi=80)
 
-    histhalf = ax4.hist(reconHalf.flatten(), alpha=0.5, bins=200, normed=True)
-    histfull = ax3.hist(reconFull.flatten(), alpha=0.5, bins=200, normed=True)
+    #----------------------------------------------
+    # Plot for every images
+    for i in xrange(len(reconImages)):
+        ax1 = fig.add_subplot(numOfImages, 2, i * 2 + 1)
+        ax2 = fig.add_subplot(numOfImages, 2, i * 2 + 2)
+        ax1.imshow(reconImages[i], cmap="Greys_r")
+        ax1.set_title("Input %i"%i)
+        hist = ax2.hist(reconImages[i].flatten(), alpha=0.8, bins=200, normed=True)
+        ax2.set_title("Gaussian fitting for input %i"%i)
 
-    ax1.set_title("Image ReconFull")
-    ax2.set_title("Image ReconHalf")
-    ax3.set_title("Hist ReconFull")
-    ax4.set_title("Hist ReconHalf")
+        #============================================
+        # Gaussian fitting
+        #--------------------------------------------
+        # Fit initial guess first, then fit 1D curve
+        initGuess = GFitter.SKLearnFitter(reconImages[i].flatten(), numOfGaussians=[2, 3, 4])
+        initGuess = np.array(initGuess)
+        numOfFittedGauss = len(initGuess)
+        res = GFitter.Fitter1D(hist[0], hist[1][:-1], energy='distancesq', numOfGaussians=numOfFittedGauss,
+                                   initialGuess=initGuess, removeDistinct=True)
+        res = np.sum(np.array([res[i][0] * GFitter.Gaussian(hist[1][:-1], res[i][1], res[i][2])
+                            for i in xrange(2)]), axis=0)
+        ax2.plot(hist[1][:-1], res)
+
 
     #--------------------------
     # Maximize the plot window
-    figManager = plt.get_current_fig_manager()
-    figManager.window.showMaximized()
-
-    # ============================================
-    # Gaussian fitting
-    #-------------------------------
-    # Fit gaussian mixture for full
-    initGuess = GFitter.SKLearnFitter(reconFull.flatten(), numOfGaussians=[2])  # initial fit
-    initGuess = np.array(initGuess)
-    resfull = GFitter.Fitter1D(histfull[0], histfull[1][:-1], energy='distancesq' ,
-                           numOfGaussians=2, initialGuess=initGuess, removeDistinct=True)
-    resfully = np.sum(np.array([resfull[i][0] * GFitter.Gaussian(histfull[1][:-1], resfull[i][1], resfull[i][2])
-                            for i in xrange(2)]), axis=0)
-
-
-    #-------------------------------------------
-    # Fix Gaussian mixture for half
-    initGuess = GFitter.SKLearnFitter(reconHalf.flatten(), numOfGaussians=[2])
-    initGuess = np.array(initGuess)
-    reshalf = GFitter.Fitter1D(histhalf[0], histhalf[1][:-1], energy='distancesq',
-                           numOfGaussians=2, initialGuess=initGuess, removeDistinct=True)
-    reshalfy = np.sum(np.array([reshalf[i][0] * GFitter.Gaussian(histhalf[1][:-1], reshalf[i][1], reshalf[i][2])
-                            for i in xrange(2)]), axis=0)
-
-    print reshalf
-    print resfull
-
-    #--------------------------------------------
-    # Finish the remaining plot
-    ax3.plot(histfull[1][:-1], resfully)
-    ax4.plot(histhalf[1][:-1], reshalfy)
+    fig.set_tight_layout(True)
     plt.show()
+    return
 
 
 if __name__ == '__main__':
-    n = 100
+    n = 50
     filename = "../TestData/LCTSP.nii.gz"
     input = sitk.GetArrayFromImage(sitk.ReadImage(filename))
     input[input == -3024] = 0
