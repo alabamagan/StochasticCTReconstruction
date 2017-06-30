@@ -22,9 +22,10 @@ import skimage.transform as tr
 
 
 # Testing
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import Algorithm.GaussianMixtureFitter as GFitter
-
+mpl.style.use('ggplot')
 
 def SampleImage(prob, sd):
     return np.random.normal(prob, sd)
@@ -36,6 +37,17 @@ def CalculatePrior(curPro, GMM_half, GMM_full):
     pair = GFitter.GaussianComponenetMatching(GMM_half, GMM_full)
     if len(pair < len(GMM_full)):
         raise ArithmeticError("Matching failed")
+
+    #--------------------------------------------
+    # Compare Gaussians' mean and sd changes
+
+
+    #--------------------------------------------
+    # Extrapolate trend
+
+    #--------------------------------------------
+    # Use predicted GMM to process current prob.
+
     return prob, sd
 
 
@@ -61,7 +73,8 @@ def main(inImage):
 
     #-------------------------------------------
     # Plot the reconstruction images
-    PlotGaussianFit(reconFull, reconHalf, reconTri)
+    reconImages = {'128': reconFull , '42': reconTri, '64': reconHalf}
+    PlotGaussianFit(reconImages)
     return
 
     #===========================================
@@ -119,12 +132,11 @@ def main(inImage):
     pass
 
 
-def PlotGaussianFit(*reconImages):
+def PlotGaussianFit(reconImages):
     """
     Plot the histogram and the gaussian mixture model fitting result
 
-    :param reconFull: Image1
-    :param reconHalf: Image2, use half of the projections
+    :param reconImages  Dictionary of input images
     :return:
     """
     #============================================
@@ -135,40 +147,59 @@ def PlotGaussianFit(*reconImages):
     # histogram generate from them
     numOfImages = len(reconImages)
     fig = plt.figure(figsize=(8, 16), dpi=80)
+    # fig2 = plt.figure()
+    # bx1 = fig2.add_subplot(211)
+    # bx2 = fig2.add_subplot(212)
 
     #----------------------------------------------
     # Plot for every images
+    resArray = []
+    keys = reconImages.keys()
     for i in xrange(len(reconImages)):
         ax1 = fig.add_subplot(numOfImages, 2, i * 2 + 1)
         ax2 = fig.add_subplot(numOfImages, 2, i * 2 + 2)
-        ax1.imshow(reconImages[i], cmap="Greys_r")
-        ax1.set_title("Input %i"%i)
-        hist = ax2.hist(reconImages[i].flatten(), alpha=0.8, bins=200, normed=True)
-        ax2.set_title("Gaussian fitting for input %i"%i)
+        ax1.imshow(reconImages[keys[i]], cmap="Greys_r")
+        ax1.set_title("Input %s"%keys[i])
+        hist = ax2.hist(reconImages[keys[i]].flatten(), alpha=0.8, bins=200, normed=True)
+        ax2.set_title("Gaussian fitting for input %s"%keys[i])
 
         #============================================
         # Gaussian fitting
         #--------------------------------------------
         # Fit initial guess first, then fit 1D curve
-        initGuess = GFitter.SKLearnFitter(reconImages[i].flatten(), numOfGaussians=[2, 3, 4])
+        initGuess = GFitter.SKLearnFitter(reconImages[keys[i]].flatten(), numOfGaussians=[2])
         initGuess = np.array(initGuess)
+        print initGuess
         numOfFittedGauss = len(initGuess)
         res = GFitter.Fitter1D(hist[0], hist[1][:-1], energy='distancesq', numOfGaussians=numOfFittedGauss,
                                    initialGuess=initGuess, removeDistinct=True)
+        resArray.append(res)
         res = np.sum(np.array([res[i][0] * GFitter.Gaussian(hist[1][:-1], res[i][1], res[i][2])
-                            for i in xrange(2)]), axis=0)
+                            for i in xrange(numOfFittedGauss)]), axis=0)
         ax2.plot(hist[1][:-1], res)
+        ax2.set_ylim([0, 0.010])
 
-
+    resArray = np.array(resArray)
+    print resArray
+    # bx1.set_title("Change in mean")
+    # bx1.plot(resArray[:])
+    # bx2.set_title("Change in sd")
+    # bx2.plot
     #--------------------------
     # Maximize the plot window
     fig.set_tight_layout(True)
     plt.show()
+    plt.cla()
+
+    #---------------------------------
+    # Plot the change in SD and mean
+
+
     return
 
 
 if __name__ == '__main__':
-    n = 50
+    n = 80
     filename = "../TestData/LCTSP.nii.gz"
     input = sitk.GetArrayFromImage(sitk.ReadImage(filename))
     input[input == -3024] = 0
