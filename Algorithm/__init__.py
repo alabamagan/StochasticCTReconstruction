@@ -1,1 +1,1 @@
-__all__ = ["GaussianMixtureFitter"]
+__all__ = ["GaussianMixtureFitter", "TomopyWrapper"]
