@@ -14,8 +14,6 @@ References:
 
 """
 
-
-import skimage.transform as tr
 import numpy as np
 import SimpleITK as sitk
 import skimage.transform as tr
@@ -25,7 +23,7 @@ import skimage.transform as tr
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import Algorithm.GaussianMixtureFitter as GFitter
-mpl.style.use('ggplot')
+# mpl.style.use('ggplot')
 
 def SampleImage(prob, sd):
     return np.random.normal(prob, sd)

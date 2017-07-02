@@ -228,6 +228,12 @@ class GMM(object):
 
     @staticmethod
     def SortGMMs(GMMList, groupParameters=False):
+        """
+
+        :param list GMMList:
+        :param bool groupParameters:
+        :return:
+        """
         raise NotImplemented
         #=======================================
         # Preprocessing
@@ -247,6 +253,16 @@ class GMM(object):
                     pairs = GaussianComponenetMatching(GMMList[i],
                                                        GMMList[j])
 
+                    pairs = np.array(pairs)
                     #========================================
-                    # Detects unaligned pairs
+                    # Detects and swap unaligned pairs
                     #========================================
+                    swapped = []
+                    for k in xrange(len(pairs)):
+                        pair = pairs[k]
+                        if pair[0] != pair[1] and not pair[1] in swapped:
+                            GMMList[j].SwapGaussianComponents(pair[1], pair[0])
+
+                        pairs[k][1]
+
+
