@@ -2,13 +2,17 @@ import numpy as np
 
 class Gaussian(object):
     def __init__(self, weight, mu, sd):
-        self.weight = weight
-        self.mean = mu
-        self.sd = sd
+        self.weight = float(weight)
+        self.mean = float(mu)
+        self.sd = float(sd)
         np.array
 
     def __str__(self):
         return "[Gaussian Object] - Weight: %.3f \t\tMean: %.3f \t\tSD: %.3f "%(self.weight, self.mean, self.sd)
+
+    def __getitem__(self, item):
+        return (self.weight, self.mean, self.sd)[item]
+
 
     @staticmethod
     def Gaussian(x, mu, sd):
@@ -19,14 +23,64 @@ class Gaussian(object):
         y = self.weight * Gaussian.Gaussian(x, self.mean, self.sd)
         return y
 
+    def GetTuple(self):
+        return (self.weight, self.mean, self.sd)
+
 class GMM(object):
-    def __init__(self):
-        self._numOfGaussians=0
-        self._components = []
+    """
+    Class: GMM
+    ----------
+
+       This class is a Gassian Mixture Model class written for Fitter.
+
+
+    Inputs
+    ------
+       Creation of a GMM object can be done in three ways:
+
+       1. No arguments, creates a new GMM object without any components
+           >>> g = GMM()
+       2. List of tuples
+           >>> g = GMM([(weight_1, mu_1, sd_1), ..., (weight_N, mu_N, sd_N)])
+       3. Another GMM object
+           >>> g1 = GMM([(1, 2, 3), (2, 3, 4)])
+           >>> g2 = GMM(g1)
+
+    :param args: (Explained in Inputs sessgion)
+    """
+    def __init__(self, *args):
+        #--------------------------------------
+        # Create GMM without any components
+        if len(args) == 0:
+            self._numOfGaussians=0
+            self._components = []
+        elif len(args) == 1:
+            l = args[0]
+            #----------------------------------
+            # Copy content from another GMM
+            if (type(l) == self.__class__):
+                self._numOfGaussians = int(l._numOfGaussians)
+                self._components = list(l._components)
+                return
+
+            #----------------------------------
+            # Creats from a list of tuple
+            if len(l[0]) != 3:
+                raise IndexError("List input must be  N x 3")
+            self._numOfGaussians = 0
+            self._components = []
+            for tup in l:
+                self.AddGaussian(tup[0], tup[1], tup[2])
+        else:
+            raise ArithmeticError("GMM constructor takes one or no arguments!")
+
 
 
     def __getitem__(self, item):
         return self._components[item]
+
+    def __str__(self):
+        return "[GMM Object] - \n" + str.join("", ["\t%s\n"%G for G in self._components])
 
 
     def AddGaussian(self, weight, mu, sd):
@@ -35,9 +89,9 @@ class GMM(object):
         ------------
             Add a Gaussian component to this mixture
 
-        :param weight:
-        :param mu:
-        :param sd:
+        :param float weight:
+        :param float mu:
+        :param float sd:
         :return:
         """
 
@@ -45,6 +99,47 @@ class GMM(object):
         self._components.append(Gaussian(weight, mu, sd))
         pass
 
+    def GetMeans(self):
+        """
+        Descriptions
+        ------------
+
+            Return a list of unsorted means in the model
+
+        :return:
+        """
+        return [self._components[i].mean for i in xrange(self._numOfGaussians)]
+
+    def GetSDs(self):
+        """
+        Descriptions
+        ------------
+
+            Return a list of unsorted sd in the model
+
+        :return:
+        """
+        return [self._components[i].sd for i in xrange(self._numOfGaussians)]
+
+    def SwapGaussianComponents(self, i, j):
+        """
+        Descriptions
+        ------------
+            Swap the index position of i-th and j-th Gaussian position. Used to align
+            a GMM with another when there are mismatch.
+
+        :param int i: i-th component
+        :param int j: j-th component
+        :return:
+        """
+        if (i >= self._numOfGaussians or j >= self._numOfGaussians or
+            i < 0 or j < 0):
+            raise IndexError("One or both of the input indexes doesn't exist")
+
+        temp = self._components[i]
+        self._components[i] = self._components[j]
+        self._components[j] = temp
+        return 1
 
     def Eval(self, x):
         """
@@ -56,12 +151,13 @@ class GMM(object):
         -------
             y = \sum_{i}^{N} c_i * N(mu_i, sd_i)
 
-        :param x: Linspace of domain to evaluate
-        :return:  Array of values evaluated at each compoent of x
+        :param numpy.array x:  Linspace of domain to evaluate
+        :return:                Array of values evaluated at each compoent of x
         """
 
         y = np.sum(np.array([self._components[i].Eval(x) for i in xrange(self._numOfGaussians)]), axis=0)
         return y
+
 
     @staticmethod
     def GaussianComponenetMatching(GMM1, GMM2):
@@ -79,15 +175,17 @@ class GMM(object):
         >>> GMMPairs = GaussianComponenetMatching(GMM1, GMM2)
         >>> print GMMPairs # [[0,0,0.3], [1,1,1]]
 
-        :param GMM1:    Gaussian mixture model 1
-        :param GMM2:    Gaussian mixture model 2
+        :param GMM GMM1:    Gaussian mixture model 1
+        :param GMM GMM2:    Gaussian mixture model 2
         :return:        Pairs inform of [[GMM1 index, GMM2 index, distance],...]
         """
 
         #=============================================================
         # Error check
         #=============================================================
-        if (type(GMM1) != GaussianMixtureModel or type(GMM2) != GaussianMixtureModel):
+        print GMM1, GMM2
+
+        if (type(GMM1) != GMM or type(GMM2) != GMM):
             raise TypeError("Input must be GaussianMextureModel object")
 
         if GMM1._numOfGaussians != GMM2._numOfGaussians:
@@ -103,25 +201,52 @@ class GMM(object):
         #----------------------------------------
         # Starts pairing the two GMMs
         try:
+            unpaired = range(s)
             for i in xrange(s):
-                mu_1 = GMM1[i][1]
+                mu_1 = GMM1[i].mean
 
                 pairIndex = -1
                 dist = 1E10
                 for j in unpaired:
-                    mu_2 = GMM2[j][1]
-                    d = np.abs(mu_1 - mu2)
-
+                    mu_2 = GMM2[j].mean
+                    d = np.abs(mu_1 - mu_2)
                     # Replace index if the distance is smaller
-                    if d < dist and paired.count(j) == 1:
+                    if d < dist:
                         dist = d
                         pairIndex= j
 
                 # Pair only when an index is found
                 if (pairIndex != -1):
-                    gaussiansPair.append([i,j, pairIndex])
+                    gaussiansPair.append([i,pairIndex, dist])
                     paired.append(j)
+                    unpaired.pop(unpaired.index(pairIndex))
         except(IndexError):
             raise IndexError("Gaussian mixtures has wrong number of parameters.")
 
-        return paired
+        return gaussiansPair
+
+
+    @staticmethod
+    def SortGMMs(GMMList, groupParameters=False):
+        raise NotImplemented
+        #=======================================
+        # Preprocessing
+        #=======================================
+        numOfGMMs = len(GMMList)
+
+        #========================================
+        # Identify GMM paris
+        #---------------------------------------------------
+        # Make sure the Gaussian components are paired up
+        for i in xrange(GMMList):
+            for j in xrange(GMMList) and j != i:
+                # Skip if comparing with itself
+                if i == j:
+                    continue
+                else:
+                    pairs = GaussianComponenetMatching(GMMList[i],
+                                                       GMMList[j])
+
+                    #========================================
+                    # Detects unaligned pairs
+                    #========================================
