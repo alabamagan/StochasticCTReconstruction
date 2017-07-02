@@ -240,25 +240,4 @@ def SKLearnFitter(inData, numOfGaussians=[2]):
     return [(parameters[i*3+0], parameters[i*3+1], np.sqrt(parameters[i*3+2])) for i in xrange(numOfGaussians[np.argmin(AIC)])]
 
 
-def SortGMMs(GMMList, groupParameters=False):
-    raise NotImplemented
-    #=======================================
-    # Preprocessing
-    #=======================================
-    numOfGMMs = len(GMMList)
 
-    #========================================
-    # Identify GMM paris
-    #---------------------------------------------------
-    # Make sure the Gaussian components are paired up
-    for i in xrange(GMMList):
-        for j in xrange(GMMList) and j != i:
-            # Skip if comparing with itself
-            if i == j:
-                continue
-            else:
-                pairs = GaussianComponenetMatching(GMMList[i],
-                                                   GMMList[j])
-    #========================================
-    #
-    #========================================
