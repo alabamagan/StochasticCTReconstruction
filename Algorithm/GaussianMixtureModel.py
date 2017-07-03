@@ -132,6 +132,9 @@ class GMM(object):
         :param int j: j-th component
         :return:
         """
+        i = int(i)
+        j = int(j)
+
         if (i >= self._numOfGaussians or j >= self._numOfGaussians or
             i < 0 or j < 0):
             raise IndexError("One or both of the input indexes doesn't exist")
@@ -183,8 +186,6 @@ class GMM(object):
         #=============================================================
         # Error check
         #=============================================================
-        print GMM1, GMM2
-
         if (type(GMM1) != GMM or type(GMM2) != GMM):
             raise TypeError("Input must be GaussianMextureModel object")
 
@@ -234,7 +235,7 @@ class GMM(object):
         :param bool groupParameters:
         :return:
         """
-        raise NotImplemented
+        # raise NotImplemented
         #=======================================
         # Preprocessing
         #=======================================
@@ -244,14 +245,14 @@ class GMM(object):
         # Identify GMM paris
         #---------------------------------------------------
         # Make sure the Gaussian components are paired up
-        for i in xrange(GMMList):
-            for j in xrange(GMMList) and j != i:
+        for i in xrange(numOfGMMs):
+            for j in xrange(numOfGMMs):
                 # Skip if comparing with itself
                 if i == j:
                     continue
                 else:
-                    pairs = GaussianComponenetMatching(GMMList[i],
-                                                       GMMList[j])
+                    pairs = GMM.GaussianComponenetMatching(GMMList[i],
+                                                           GMMList[j])
 
                     pairs = np.array(pairs)
                     #========================================
@@ -263,6 +264,9 @@ class GMM(object):
                         if pair[0] != pair[1] and not pair[1] in swapped:
                             GMMList[j].SwapGaussianComponents(pair[1], pair[0])
 
-                        pairs[k][1]
+                            index = np.where(pairs[:,1] == pair[0])
+                            pairs[int(index[0])][1] = pair[1]
+                            pairs[k][1] = pair[0]
+
 
 

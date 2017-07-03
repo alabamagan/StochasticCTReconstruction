@@ -17,8 +17,15 @@ def TestGMM():
     G2.AddGaussian(10, 5, 3)
     G2.AddGaussian(2, -3, 1)
 
-    print GMM.GaussianComponenetMatching(G1, G2)
+    print "===Before==="
+    print "G1", G1
+    print "G2", G2
 
+    GMM.SortGMMs([G1,G2])
+
+    print "===After==="
+    print "G1", G1
+    print "G2", G2
 
     pass
 
