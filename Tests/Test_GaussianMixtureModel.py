@@ -21,7 +21,7 @@ def TestGMM():
     print "G1", G1
     print "G2", G2
 
-    GMM.SortGMMs([G1,G2])
+    print GMM.SortGMMs([G1,G2], True)
 
     print "===After==="
     print "G1", G1
