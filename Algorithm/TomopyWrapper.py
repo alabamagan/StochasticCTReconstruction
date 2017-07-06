@@ -84,7 +84,7 @@ def Recon(sinogram, theta, algorithm='gridrec'):
     # Convert theta from degrees to radian
     theta = np.deg2rad(theta)
 
-    reconimage = tomopy.recon(sinogram, theta, algorithm=algorithm, sinogram_order=True, ncore=1)
+    reconimage = tomopy.recon(sinogram, theta, algorithm=algorithm, sinogram_order=True, ncore=None)
     if Flag2D:
         reconimage = reconimage.reshape(sinogram.shape[2], sinogram.shape[1])
     return reconimage
