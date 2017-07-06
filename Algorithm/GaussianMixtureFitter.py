@@ -3,6 +3,7 @@ import scipy.optimize as optimize
 import scipy as sp
 from sklearn.mixture import GaussianMixture as GMM
 import matplotlib.pyplot as plt
+import Algorithm.GaussianMixtureModel as MyGMM
 
 def Gaussian(x, mu, sd):
     return 1./np.sqrt(2*np.pi*sd**2) * np.exp(-(x - mu)**2 / (2.*sd**2))
@@ -127,8 +128,8 @@ def Fitter1D(inCurve, inDomain=None, initialGuess=None, energy='distancesq', num
     def CompareMixture(parameters):
         # Parameters format is [{c, mu, sd}, ...]
         parameters = parameters.reshape([numOfGaussians, 3])
-        y = np.sum(np.array([parameters[i][0] * Gaussian(inDomain, parameters[i][1], parameters[i][2])
-                         for i in xrange(numOfGaussians)]), axis=0)
+        G = MyGMM.GMM(parameters)
+        y = G.Eval(inDomain)
 
         #--------------------------------------------------------------------
         # The energy can be choosen from the following options:
