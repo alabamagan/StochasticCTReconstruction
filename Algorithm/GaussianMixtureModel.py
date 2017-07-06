@@ -245,28 +245,28 @@ class GMM(object):
         # Identify GMM paris
         #---------------------------------------------------
         # Make sure the Gaussian components are paired up
-        for i in xrange(numOfGMMs):
-            for j in xrange(numOfGMMs):
-                # Skip if comparing with itself
-                if i == j:
-                    continue
-                else:
-                    pairs = GMM.GaussianComponenetMatching(GMMList[i],
-                                                           GMMList[j])
+        for j in xrange(1, numOfGMMs):
+            pairs = GMM.GaussianComponenetMatching(GMMList[0],
+                                                   GMMList[j])
 
-                    pairs = np.array(pairs)
-                    #========================================
-                    # Detects and swap unaligned pairs
-                    #========================================
-                    swapped = []
-                    for k in xrange(len(pairs)):
-                        pair = pairs[k]
-                        if pair[0] != pair[1] and not pair[1] in swapped:
-                            GMMList[j].SwapGaussianComponents(pair[1], pair[0])
+            pairs = np.array(pairs)
+            #========================================
+            # Detects and swap unaligned pairs
+            #========================================
+            swapped = []
+            for k in xrange(len(pairs)):
+                pair = pairs[k]
+                if pair[0] != pair[1] and not pair[1] in swapped:
+                    GMMList[j].SwapGaussianComponents(pair[1], pair[0])
 
-                            index = np.where(pairs[:,1] == pair[0])
-                            pairs[int(index[0])][1] = pair[1]
-                            pairs[k][1] = pair[0]
+                    index = np.where(pairs[:,1] == pair[0])
+                    pairs[int(index[0])][1] = pair[1]
+                    pairs[k][1] = pair[0]
 
 
-
+        if (groupParameters):
+            outdict = {}
+            outdict['weight'] = [[G[i].weight for G in GMMList] for i in xrange(GMMList[0]._numOfGaussians)]
+            outdict['mean'] = [[G[i].mean for G in GMMList] for i in xrange(GMMList[0]._numOfGaussians)]
+            outdict['sd'] = [[G[i].sd for G in GMMList] for i in xrange(GMMList[0]._numOfGaussians)]
+            return outdict
