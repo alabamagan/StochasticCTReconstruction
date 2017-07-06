@@ -182,7 +182,9 @@ def Fitter1D(inCurve, inDomain=None, initialGuess=None, energy='distancesq', num
     # Start optimization
     #====================================================================
     res = optimize.minimize(CompareMixture, initialGuess, method='powell', tol=1e-8, options={'maxiter':1e3 ,'disp':True})
-    return [(res.x[i*3+0], res.x[i*3+1], res.x[i*3+2]) for i in xrange(numOfGaussians)]
+    G = MyGMM.GMM()
+    [G.AddGaussian(res.x[i*3+0], res.x[i*3+1], res.x[i*3+2]) for i in xrange(numOfGaussians)]
+    return G
 
 
 def SKLearnFitter(inData, numOfGaussians=[2]):

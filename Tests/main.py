@@ -23,7 +23,9 @@ import skimage.transform as tr
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import Algorithm.GaussianMixtureFitter as GFitter
-# mpl.style.use('ggplot')
+import Algorithm.GaussianMixtureModel as MyGMM
+
+mpl.style.use('ggplot')
 
 def SampleImage(prob, sd):
     return np.random.normal(prob, sd)
@@ -64,6 +66,7 @@ def main(inImage):
 
     #--------------------------------------------------------------------
     # Filtered back projection based on N projectionsm, use ramp filter
+    reconQuad = tr.iradon(D[:,::4], theta=thetas[::4], circle=True)
     reconTri = tr.iradon(D[:,::3], theta=thetas[::3], circle=True)
     reconHalf = tr.iradon(D[:,::2],theta=thetas[::2], circle=True)
     reconFull = tr.iradon(D, theta=thetas, circle=True)
@@ -71,7 +74,7 @@ def main(inImage):
 
     #-------------------------------------------
     # Plot the reconstruction images
-    reconImages = {'128': reconFull , '42': reconTri, '64': reconHalf}
+    reconImages = {'128': reconFull , '42': reconTri, '64': reconHalf, '32': reconQuad}
     PlotGaussianFit(reconImages)
     return
 
@@ -145,14 +148,15 @@ def PlotGaussianFit(reconImages):
     # histogram generate from them
     numOfImages = len(reconImages)
     fig = plt.figure(figsize=(8, 16), dpi=80)
-    # fig2 = plt.figure()
-    # bx1 = fig2.add_subplot(211)
-    # bx2 = fig2.add_subplot(212)
+    fig2 = plt.figure(dpi=80)
+    bx1 = fig2.add_subplot(211)
+    bx2 = fig2.add_subplot(212)
 
     #----------------------------------------------
     # Plot for every images
     resArray = []
     keys = reconImages.keys()
+    print keys
     for i in xrange(len(reconImages)):
         ax1 = fig.add_subplot(numOfImages, 2, i * 2 + 1)
         ax2 = fig.add_subplot(numOfImages, 2, i * 2 + 2)
@@ -167,38 +171,36 @@ def PlotGaussianFit(reconImages):
         # Fit initial guess first, then fit 1D curve
         initGuess = GFitter.SKLearnFitter(reconImages[keys[i]].flatten(), numOfGaussians=[2])
         initGuess = np.array(initGuess)
-        print initGuess
         numOfFittedGauss = len(initGuess)
         res = GFitter.Fitter1D(hist[0], hist[1][:-1], energy='distancesq', numOfGaussians=numOfFittedGauss,
                                    initialGuess=initGuess, removeDistinct=True)
         resArray.append(res)
-        res = np.sum(np.array([res[i][0] * GFitter.Gaussian(hist[1][:-1], res[i][1], res[i][2])
-                            for i in xrange(numOfFittedGauss)]), axis=0)
+        res = res.Eval(hist[1][:-1])
         ax2.plot(hist[1][:-1], res)
         ax2.set_ylim([0, 0.010])
 
-    resArray = np.array(resArray)
-    print resArray
-    # bx1.set_title("Change in mean")
-    # bx1.plot(resArray[:])
-    # bx2.set_title("Change in sd")
-    # bx2.plot
+    changes = MyGMM.GMM.SortGMMs(resArray, True)
+
+
+    #---------------------------------
+    # Plot the change in SD and mean
+    bx1.set_title("Change in mean")
+    bx2.set_title("Change in sd")
+    [bx1.plot(changes['mean'][i]) for i in xrange(len(changes['mean']))]
+    [bx2.plot(changes['sd'][i]) for i in xrange(len(changes['sd']))]
+
     #--------------------------
     # Maximize the plot window
     fig.set_tight_layout(True)
     plt.show()
-    plt.cla()
-
-    #---------------------------------
-    # Plot the change in SD and mean
-
-
     return
 
 
 if __name__ == '__main__':
-    n = 80
+    n = 50
     filename = "../TestData/LCTSP.nii.gz"
     input = sitk.GetArrayFromImage(sitk.ReadImage(filename))
     input[input == -3024] = 0
-    main(input[n])
+    main(input[50])
+    main(input[60])
+    main(input[70])
