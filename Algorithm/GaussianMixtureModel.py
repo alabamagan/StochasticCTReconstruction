@@ -167,7 +167,6 @@ class GMM(object):
         """
         Descriptions
         ------------
-
           This function pair up Gaussian components of the input based on their distance.
 
         Example:
@@ -230,9 +229,15 @@ class GMM(object):
     @staticmethod
     def SortGMMs(GMMList, groupParameters=False):
         """
+        Descriptions
+        ------------
 
-        :param list GMMList:
-        :param bool groupParameters:
+          Sort the Gaussian components of the input GMM so that all of them
+          aligns with the first element of the GMMList by closest mean
+
+        :param list GMMList:         List of GMMs
+        :param bool groupParameters: True to return the sorted dictionary of
+                                     mean, weight and sd
         :return:
         """
         # raise NotImplemented
