@@ -10,9 +10,16 @@ def main(*args):
     pro.SetInputImage3D(im)
     projected = pro.Project(np.linspace(0, np.pi, 100), 'parallel3d')
 
-    print projected.shape
+    re = aw.Reconstructor()
+    re.SetInputSinogram(projected, np.linspace(0, np.pi, 100))
+    re.SetReconVolumeGeom(imageShape = im.shape)
+    recon = re.Recon('CGLS3D_CUDA', 150)
 
-    plt.imshow(projected[50], cmap="Greys")
+    fig = plt.figure()
+    ax1 = fig.add_subplot(212)
+    ax2 = fig.add_subplot(211)
+    ax1.imshow(im[50], cmap="Greys_r")
+    ax2.imshow(recon[50], cmap="Greys_r")
     plt.show()
 
     pass
