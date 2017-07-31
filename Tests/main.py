@@ -17,7 +17,7 @@ References:
 import numpy as np
 import SimpleITK as sitk
 import skimage.transform as tr
-
+import Algorithm.AstraWrapper as awrapper
 
 # Testing
 import matplotlib as mpl
@@ -51,7 +51,7 @@ def CalculatePrior(curPro, GMM_half, GMM_full):
     return prob, sd
 
 
-def main(inImage):
+def main(inImage, reconmethod='sklearn'):
     N = 128
 
     #====================================================================
@@ -61,20 +61,56 @@ def main(inImage):
     # The projections are then normalized based on the sum of all pixels
     # in the sinogram
     thetas = np.linspace(0, 180, N)
-    D = tr.radon(inImage, theta=thetas, circle=True)
+    if (reconmethod == 'sklearn'):
+        D = tr.radon(inImage, theta=thetas, circle=True)
+    elif (reconmethod == 'astra'):
+        D = awrapper.Projector()
+        D.SetInputImage3D(inImage)
+        D = D.Project(thetas)
     normD = D / abs(np.sum(D, axis=0))
 
     #--------------------------------------------------------------------
     # Filtered back projection based on N projectionsm, use ramp filter
-    reconQuad = tr.iradon(D[:,::4], theta=thetas[::4], circle=True)
-    reconTri = tr.iradon(D[:,::3], theta=thetas[::3], circle=True)
-    reconHalf = tr.iradon(D[:,::2],theta=thetas[::2], circle=True)
-    reconFull = tr.iradon(D, theta=thetas, circle=True)
-    recon = reconHalf*reconFull/np.mean(reconHalf)
+    if (reconmethod == 'sklearn'):
+        reconQuad = tr.iradon(D[:,::4], theta=thetas[::4], circle=True)
+        reconTri = tr.iradon(D[:,::3], theta=thetas[::3], circle=True)
+        reconHalf = tr.iradon(D[:,::2],theta=thetas[::2], circle=True)
+        reconFull = tr.iradon(D, theta=thetas, circle=True)
+        recon = reconHalf*reconFull/np.mean(reconHalf)
+
+
+    #--------------------------------------------------------------------
+    # Sirt algorithm reconstruction
+    if (reconmethod == 'astra'):
+        reconFull = awrapper.Reconstructor()
+        reconFull.SetReconVolumeGeom(imageShape=inImage.shape)
+        reconFull.SetInputSinogram(D, thetas=thetas)
+        reconFull = reconFull.Recon('CGLS3D_CUDA', 150)
+        reconHalf = awrapper.Reconstructor()
+        reconHalf.SetReconVolumeGeom(imageShape=inImage.shape)
+        reconHalf.SetInputSinogram(D[:,::2], thetas=thetas[::2])
+        reconHalf = reconHalf.Recon('CGLS3D_CUDA', 150)
+        reconTri = awrapper.Reconstructor()
+        reconTri.SetReconVolumeGeom(imageShape=inImage.shape)
+        reconTri.SetInputSinogram(D[:,::3], thetas=thetas[::3])
+        reconTri = reconTri.Recon('CGLS3D_CUDA', 150)
+        reconQuad = awrapper.Reconstructor()
+        reconQuad.SetReconVolumeGeom(imageShape=inImage.shape)
+        reconQuad.SetInputSinogram(D[:,::4], thetas=thetas[::4])
+        reconQuad = reconQuad.Recon('CGLS3D_CUDA', 150)
+
+        reconImages = {'128': reconFull , '42': reconTri, '64': reconHalf, '32': reconQuad}
+
+
+
 
     #-------------------------------------------
     # Plot the reconstruction images
-    reconImages = {'128': reconFull , '42': reconTri, '64': reconHalf, '32': reconQuad}
+    if (reconmethod == 'sklearn'):
+        reconImages = {'128': reconFull , '42': reconTri, '64': reconHalf, '32': reconQuad}
+    elif (reconmethod == 'astra'):
+        slicenum = 70
+        reconImages = {'128': reconFull[N] , '42': reconTri[N], '64': reconHalf[N], '32': reconQuad[N]}
     PlotGaussianFit(reconImages)
     return
 
@@ -201,6 +237,4 @@ if __name__ == '__main__':
     filename = "../TestData/LCTSP.nii.gz"
     input = sitk.GetArrayFromImage(sitk.ReadImage(filename))
     input[input == -3024] = 0
-    main(input[50])
-    main(input[60])
-    main(input[70])
+    main(input, 'astra')

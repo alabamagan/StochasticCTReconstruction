@@ -11,11 +11,16 @@ class Projector(object):
         astra.data3d.delete(self._proj_id)
         astra.data3d.delete(self._imageVol)
 
-    def Project(self, thetas, algorithm):
+    def Project(self, thetas, algorithm = 'parallel3d'):
         """
+        Descriptions
+        ------------
+          Start the projection. Call only after input image is set
+          Algorithm takes on the values:
+            - 'parallel3d'
 
-        :param thetas:
-        :param algorithm:
+        :param thetas np.ndarray:
+        :param algorithm str: Select from {'parallel3d'}
         :return:
         """
         self._Project(thetas, algorithm)
@@ -52,7 +57,7 @@ class Projector(object):
             return
 
         proj_geom = proj_geom = astra.create_proj_geom(
-            'parallel3d', 1., 1., self._zSize, int(np.ceil(np.sqrt(2*self._ySize**2))), thetas)
+            algorithm, 1., 1., self._zSize, int(np.ceil(np.sqrt(2*self._ySize**2))), thetas)
 
         if (self._proj_id):
             astra.data3d.delete(self._proj_id)
@@ -121,6 +126,18 @@ class Reconstructor(object):
         pass
 
     def Recon(self, algorithm, iterations):
+        """
+        Descriptions
+        ------------
+          Returns the reconstructed image.
+          algorithm takes on values:
+          - 'CGLS3D_CUDA'
+
+
+        :param algorithm str:  Method of reconstruction
+        :param iterations int: Number of iteration ran for;acd0;fir
+        :return:
+        """
 
         cfg = astra.astra_dict('CGLS3D_CUDA')
         cfg['ReconstructionDataId'] = self._rec_id
