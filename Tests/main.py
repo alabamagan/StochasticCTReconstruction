@@ -69,6 +69,7 @@ def main(inImage, reconmethod='sklearn'):
         D = D.Project(thetas)
     normD = D / abs(np.sum(D, axis=0))
 
+
     #--------------------------------------------------------------------
     # Filtered back projection based on N projectionsm, use ramp filter
     if (reconmethod == 'sklearn'):
@@ -83,24 +84,26 @@ def main(inImage, reconmethod='sklearn'):
     # Sirt algorithm reconstruction
     if (reconmethod == 'astra'):
         reconFull = awrapper.Reconstructor()
-        reconFull.SetReconVolumeGeom(imageShape=inImage.shape)
+        reconFull.SetReconVolumeGeom(imageShape=inImage.shape, circle_mask=True)
         reconFull.SetInputSinogram(D, thetas=thetas)
         reconFull = reconFull.Recon('CGLS3D_CUDA', 150)
         reconHalf = awrapper.Reconstructor()
-        reconHalf.SetReconVolumeGeom(imageShape=inImage.shape)
+        reconHalf.SetReconVolumeGeom(imageShape=inImage.shape, circle_mask=True)
         reconHalf.SetInputSinogram(D[:,::2], thetas=thetas[::2])
         reconHalf = reconHalf.Recon('CGLS3D_CUDA', 150)
         reconTri = awrapper.Reconstructor()
-        reconTri.SetReconVolumeGeom(imageShape=inImage.shape)
+        reconTri.SetReconVolumeGeom(imageShape=inImage.shape, circle_mask=True)
         reconTri.SetInputSinogram(D[:,::3], thetas=thetas[::3])
         reconTri = reconTri.Recon('CGLS3D_CUDA', 150)
         reconQuad = awrapper.Reconstructor()
-        reconQuad.SetReconVolumeGeom(imageShape=inImage.shape)
+        reconQuad.SetReconVolumeGeom(imageShape=inImage.shape, circle_mask=True)
         reconQuad.SetInputSinogram(D[:,::4], thetas=thetas[::4])
         reconQuad = reconQuad.Recon('CGLS3D_CUDA', 150)
 
         reconImages = {'128': reconFull , '42': reconTri, '64': reconHalf, '32': reconQuad}
-
+        # for keys in reconImages:
+        #     im = sitk.GetImageFromArray(reconImages[keys])
+        #     sitk.WriteImage(im, "../TestData/Recon_%03d.nii.gz"%int(keys))
 
 
 
@@ -183,10 +186,11 @@ def PlotGaussianFit(reconImages):
     # holds the image inputs two holds the
     # histogram generate from them
     numOfImages = len(reconImages)
-    fig = plt.figure(figsize=(8, 16), dpi=80)
-    fig2 = plt.figure(dpi=80)
-    bx1 = fig2.add_subplot(211)
-    bx2 = fig2.add_subplot(212)
+    fig = plt.figure(figsize=(8, 13), dpi=80)
+    fig2 = plt.figure(figsize=(5,13), dpi=80)
+    bx1 = fig2.add_subplot(311)
+    bx2 = fig2.add_subplot(312)
+    bx3 = fig2.add_subplot(313)
 
     #----------------------------------------------
     # Plot for every images
@@ -205,7 +209,7 @@ def PlotGaussianFit(reconImages):
         # Gaussian fitting
         #--------------------------------------------
         # Fit initial guess first, then fit 1D curve
-        initGuess = GFitter.SKLearnFitter(reconImages[keys[i]].flatten(), numOfGaussians=[2])
+        initGuess = GFitter.SKLearnFitter(reconImages[keys[i]].flatten(), numOfGaussians=[5])
         initGuess = np.array(initGuess)
         numOfFittedGauss = len(initGuess)
         res = GFitter.Fitter1D(hist[0], hist[1][:-1], energy='distancesq', numOfGaussians=numOfFittedGauss,
@@ -222,8 +226,10 @@ def PlotGaussianFit(reconImages):
     # Plot the change in SD and mean
     bx1.set_title("Change in mean")
     bx2.set_title("Change in sd")
+    bx3.set_title("Change in weight")
     [bx1.plot(changes['mean'][i]) for i in xrange(len(changes['mean']))]
     [bx2.plot(changes['sd'][i]) for i in xrange(len(changes['sd']))]
+    [bx3.plot(changes['weight'][i]) for i in xrange(len(changes['weight']))]
 
     #--------------------------
     # Maximize the plot window
