@@ -245,6 +245,8 @@ class GMM(object):
         # Preprocessing
         #=======================================
         numOfGMMs = len(GMMList)
+        for GMM in GMMList:
+            GMM.SortByMean(ascending=True)
 
         #========================================
         # Identify GMM paris
@@ -275,3 +277,22 @@ class GMM(object):
             outdict['mean'] = [[G[i].mean for G in GMMList] for i in xrange(GMMList[0]._numOfGaussians)]
             outdict['sd'] = [[G[i].sd for G in GMMList] for i in xrange(GMMList[0]._numOfGaussians)]
             return outdict
+
+
+    def SortByMean(self, ascending=False):
+        """
+        Descriptions
+        ------------
+          Sort this by means
+
+        :param ascending:
+        :return:
+        """
+
+        if ascending:
+            self._components.sort(key=lambda G: G.mean)
+        else:
+            self._components.sort(key=lambda G: G.mean, reverse=True)
+        pass
+
+
