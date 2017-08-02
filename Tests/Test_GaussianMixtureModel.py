@@ -27,6 +27,10 @@ def TestGMM():
     print "G1", G1
     print "G2", G2
 
+    G1.SortByMean()
+    print "===SortMean==="
+    print "G1", G1
+
     pass
 
 
