@@ -181,7 +181,7 @@ def Fitter1D(inCurve, inDomain=None, initialGuess=None, energy='distancesq', num
     #====================================================================
     # Start optimization
     #====================================================================
-    res = optimize.minimize(CompareMixture, initialGuess, method='powell', tol=1e-8, options={'maxiter':1e3 ,'disp':True})
+    res = optimize.minimize(CompareMixture, initialGuess, method='powell', tol=1e-8, options={'maxiter':1e3 ,'disp':True}, bounds=[[(0, None), (None, None), (0, None)] for i in xrange(numOfGaussians)])
     G = MyGMM.GMM()
     [G.AddGaussian(res.x[i*3+0], res.x[i*3+1], res.x[i*3+2]) for i in xrange(numOfGaussians)]
     return G
