@@ -18,6 +18,7 @@ import numpy as np
 import SimpleITK as sitk
 import skimage.transform as tr
 import Algorithm.AstraWrapper as awrapper
+import os
 
 # Testing
 import matplotlib as mpl
@@ -51,8 +52,11 @@ def CalculatePrior(curPro, GMM_half, GMM_full):
     return prob, sd
 
 
-def main(inImage, reconmethod='sklearn'):
-    N = 128
+def main(inImage, reconmethod='sklearn', thetas = None, N = 128):
+    if (thetas is None):
+        thetas = np.linspace(0, 180, N)
+    else:
+        N =len(thetas)
 
     #====================================================================
     # Preprocessing
@@ -60,7 +64,6 @@ def main(inImage, reconmethod='sklearn'):
     # Obtain n projections from input (psuedo raw data, theta in degrees)
     # The projections are then normalized based on the sum of all pixels
     # in the sinogram
-    thetas = np.linspace(0, 180, N)
     if (reconmethod == 'sklearn'):
         D = tr.radon(inImage, theta=thetas, circle=True)
     elif (reconmethod == 'astra'):
@@ -83,92 +86,100 @@ def main(inImage, reconmethod='sklearn'):
     #--------------------------------------------------------------------
     # Sirt algorithm reconstruction
     if (reconmethod == 'astra'):
+        iterations = 150
         reconFull = awrapper.Reconstructor()
         reconFull.SetReconVolumeGeom(imageShape=inImage.shape, circle_mask=True)
         reconFull.SetInputSinogram(D, thetas=thetas)
-        reconFull = reconFull.Recon('CGLS3D_CUDA', 150)
+        reconFull = reconFull.Recon('CGLS3D_CUDA', iterations)
         reconHalf = awrapper.Reconstructor()
         reconHalf.SetReconVolumeGeom(imageShape=inImage.shape, circle_mask=True)
         reconHalf.SetInputSinogram(D[:,::2], thetas=thetas[::2])
-        reconHalf = reconHalf.Recon('CGLS3D_CUDA', 150)
+        reconHalf = reconHalf.Recon('CGLS3D_CUDA', iterations)
         reconTri = awrapper.Reconstructor()
         reconTri.SetReconVolumeGeom(imageShape=inImage.shape, circle_mask=True)
         reconTri.SetInputSinogram(D[:,::3], thetas=thetas[::3])
-        reconTri = reconTri.Recon('CGLS3D_CUDA', 150)
+        reconTri = reconTri.Recon('CGLS3D_CUDA', iterations)
         reconQuad = awrapper.Reconstructor()
         reconQuad.SetReconVolumeGeom(imageShape=inImage.shape, circle_mask=True)
         reconQuad.SetInputSinogram(D[:,::4], thetas=thetas[::4])
-        reconQuad = reconQuad.Recon('CGLS3D_CUDA', 150)
+        reconQuad = reconQuad.Recon('CGLS3D_CUDA', iterations)
 
         reconImages = {'128': reconFull , '42': reconTri, '64': reconHalf, '32': reconQuad}
-        # for keys in reconImages:
-        #     im = sitk.GetImageFromArray(reconImages[keys])
-        #     sitk.WriteImage(im, "../TestData/Recon_%03d.nii.gz"%int(keys))
+        for keys in reconImages:
+            index = 0
+            im = sitk.GetImageFromArray(reconImages[keys])
+            fname = "Recon_i%04d_%03d_%03d"%(iterations, int(thetas.mean()), int(keys))
+            fpath = "../TestData/"
+            suffix = ".nii.gz"
+            f =  fpath + fname + suffix
+            while (os.path.isfile(f)):
+                f = fpath + fname + "_%d"%index + suffix
+                index += 1
+            sitk.WriteImage(im, f)
 
-
-
-    #-------------------------------------------
-    # Plot the reconstruction images
-    if (reconmethod == 'sklearn'):
-        reconImages = {'128': reconFull , '42': reconTri, '64': reconHalf, '32': reconQuad}
-    elif (reconmethod == 'astra'):
-        slicenum = 70
-        reconImages = {'128': reconFull[N] , '42': reconTri[N], '64': reconHalf[N], '32': reconQuad[N]}
-    PlotGaussianFit(reconImages)
-    return
-
-    #===========================================
-    # Simulated Annealling
-    #-------------------------------------------
-    # While Tempreture != 0, do while loop
-    trial = None
-    T = 100 #init temperature
-    E = 1.e31 # float 32 max
-    while(T > 10):
-        #------------------------------------
-        # Sample new image configuration
-        # from the probability distribution
-        trial = SampleImage(recon, 10)
-
-        #------------------------------------
-        # Calculate energy by equation (3)
-        D_star = tr.radon(trial, theta=thetas)
-        normD_star = D_star / abs(np.sum(D_star, axis=0))
-        trial_energy = np.sum(np.abs(normD - normD_star))
-
-        #-----------------------------------------------------------
-        # Establish probability of excepting this configuration
-        try:
-            prob = np.min([1., np.exp(E/T)/np.exp(trial_energy/T)])
-        except(OverflowError):
-            print "Overflow error"
-            prob = 1
-        except(ValueError):
-            print "Value Error"
-            prob = 1
-
-        #----------------------------------------------------
-        # Base on above probability roll dice see if except
-        roll = np.random.rand()
-        ###   if except, renew energy, reduce temperature
-        if (roll <= prob):
-            dE = trial_energy - E
-            E = trial_energy
-            T -= 1
-            print "Current E %.05f  dE %.05f excepted at prob: %.2f"%(E, dE, prob)
-
-
-    #==============================================
-    # Plot Results
-    #==============================================
-    fig = plt.figure()
-    ax1 = fig.add_subplot(221)
-    ax2 = fig.add_subplot(222)
-    ax3 = fig.add_subplot(212)
-    ax1.imshow(recon, cmap="Greys_r", vmax=0, vmin=-3000)
-    ax2.imshow(trial, cmap="Greys_r", vmax=0, vmin=-3000)
-    ax3.imshow(inImage, cmap="Greys_r", vmax=0, vmin=-3000)
-    plt.show()
+    #
+    # #-------------------------------------------
+    # # Plot the reconstruction images
+    # if (reconmethod == 'sklearn'):
+    #     reconImages = {'128': reconFull , '42': reconTri, '64': reconHalf, '32': reconQuad}
+    # elif (reconmethod == 'astra'):
+    #     slicenum = 70
+    #     reconImages = {'128': reconFull[N] , '42': reconTri[N], '64': reconHalf[N], '32': reconQuad[N]}
+    # PlotGaussianFit(reconImages)
+    # return
+    #
+    # #===========================================
+    # # Simulated Annealling
+    # #-------------------------------------------
+    # # While Tempreture != 0, do while loop
+    # trial = None
+    # T = 100 #init temperature
+    # E = 1.e31 # float 32 max
+    # while(T > 10):
+    #     #------------------------------------
+    #     # Sample new image configuration
+    #     # from the probability distribution
+    #     trial = SampleImage(recon, 10)
+    #
+    #     #------------------------------------
+    #     # Calculate energy by equation (3)
+    #     D_star = tr.radon(trial, theta=thetas)
+    #     normD_star = D_star / abs(np.sum(D_star, axis=0))
+    #     trial_energy = np.sum(np.abs(normD - normD_star))
+    #
+    #     #-----------------------------------------------------------
+    #     # Establish probability of excepting this configuration
+    #     try:
+    #         prob = np.min([1., np.exp(E/T)/np.exp(trial_energy/T)])
+    #     except(OverflowError):
+    #         print "Overflow error"
+    #         prob = 1
+    #     except(ValueError):
+    #         print "Value Error"
+    #         prob = 1
+    #
+    #     #----------------------------------------------------
+    #     # Base on above probability roll dice see if except
+    #     roll = np.random.rand()
+    #     ###   if except, renew energy, reduce temperature
+    #     if (roll <= prob):
+    #         dE = trial_energy - E
+    #         E = trial_energy
+    #         T -= 1
+    #         print "Current E %.05f  dE %.05f excepted at prob: %.2f"%(E, dE, prob)
+    #
+    #
+    # #==============================================
+    # # Plot Results
+    # #==============================================
+    # fig = plt.figure()
+    # ax1 = fig.add_subplot(221)
+    # ax2 = fig.add_subplot(222)
+    # ax3 = fig.add_subplot(212)
+    # ax1.imshow(recon, cmap="Greys_r", vmax=0, vmin=-3000)
+    # ax2.imshow(trial, cmap="Greys_r", vmax=0, vmin=-3000)
+    # ax3.imshow(inImage, cmap="Greys_r", vmax=0, vmin=-3000)
+    # plt.show()
     pass
 
 
@@ -218,7 +229,6 @@ def PlotGaussianFit(reconImages):
         res = res.Eval(hist[1][:-1])
         ax2.plot(hist[1][:-1], res)
         ax2.set_ylim([0, 0.010])
-
     changes = MyGMM.GMM.SortGMMs(resArray, True)
 
 
@@ -237,10 +247,17 @@ def PlotGaussianFit(reconImages):
     plt.show()
     return
 
+from multiprocessing import Process
 
 if __name__ == '__main__':
-    n = 50
     filename = "../TestData/LCTSP.nii.gz"
     input = sitk.GetArrayFromImage(sitk.ReadImage(filename))
     input[input == -3024] = 0
-    main(input, 'astra')
+
+    N = 128
+    for i in xrange(8):
+        thetas = np.random.rand(N)*180
+        thetas.sort()
+
+        p = Process(target=main, args=[input, 'astra', thetas])
+        p.start()
