@@ -12,7 +12,7 @@ class Projector(object):
         astra.data3d.delete(self._proj_id)
         astra.data3d.delete(self._imageVol)
 
-    def Project(self, thetas, algorithm = 'parallel3d'):
+    def Project(self, thetas, algorithm = 'parallel3d', **kwargs):
         """
         Descriptions
         ------------
@@ -24,6 +24,13 @@ class Projector(object):
         :param algorithm str: Select from {'parallel3d'}
         :return:
         """
+        #--------------------------------------------------------------------
+        # Create Circular mask
+        if (kwargs.has_key('circle_mask')):
+            if (kwargs['circle_mask']):
+                self.circle_mask = True
+
+
         self._Project(thetas, algorithm)
         return self._proj_array
 
@@ -60,6 +67,21 @@ class Projector(object):
         proj_geom = proj_geom = astra.create_proj_geom(
             algorithm, 1., 1., self._zSize, int(np.ceil(np.sqrt(2*self._ySize**2))), thetas)
 
+        #--------------------------------------------------------------------
+        # Create Circular mask
+        if (kwargs.has_key('circle_mask')):
+            if (kwargs['circle_mask']):
+                center = np.array([zSize, ySize, xSize])/2.
+                x, y, z = np.meshgrid(self._image.shape[0],
+                                      self._image.shape[1],
+                                      self._image.shape[2])
+                mask = (y - center[1])**2 + \
+                       (x- center[2])**2 < ((y+1)/2.)**2
+                mask = not mask
+                self._image[mask] = 0
+                astra.data3d.store(self._imageVol, self._image)
+
+
         if (self._proj_id):
             astra.data3d.delete(self._proj_id)
         self._proj_id, self._proj_data = astra.create_sino3d_gpu(self._imageVol, proj_geom, self._vol_geom)
@@ -69,6 +91,7 @@ class Projector(object):
         astra.projector.delete(self._proj_id)
         astra.data3d.delete(self._imageVol)
         pass
+
 
 class Reconstructor(object):
     def __init__(self):
@@ -87,7 +110,6 @@ class Reconstructor(object):
         if self._mask_id >= 0:
             astra.data3d.delete(self._mask_id)
         pass
-
 
     def SetReconVolumeGeom(self, **kwargs):
         """
@@ -134,7 +156,6 @@ class Reconstructor(object):
 
         self._vol_geom = vol_geom
         self._rec_id = astra.data3d.create('-vol', vol_geom)
-
 
     def SetInputSinogram(self, sino, thetas):
         if(self._sino_id >= 0):
