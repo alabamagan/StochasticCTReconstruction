@@ -41,7 +41,7 @@ def Animate(N, imdict, imageKeys):
         # Gaussian fitting
         # --------------------------------------------
         # Fit initial guess first, then fit 1D curve
-        initGuess = GFitter.SKLearnFitter(reconImages[imageKeys[i]][N].flatten(), numOfGaussians=[4])
+        initGuess = GFitter.SKLearnFitter(reconImages[imageKeys[i]][N].flatten(), numOfGaussians=[2])
         initGuess = np.array(initGuess)
         numOfFittedGauss = len(initGuess)
         res = GFitter.Fitter1D(hist[0], hist[1][:-1], energy='distancesq', numOfGaussians=numOfFittedGauss,
@@ -68,7 +68,7 @@ def Animate(N, imdict, imageKeys):
     ret.append(bx2)
     ret.append(bx3)
 
-    fig.savefig("../TestData/gifs/Recon_550_%03d.png"%N)
+    fig.savefig("../TestData/gifs/Recon_%03d.png"%N)
     return
 
 def main():
@@ -76,7 +76,7 @@ def main():
     imdict = {}
     imageKeys = ['128', '64', '42', '32']
     for keys in imageKeys:
-        im = sitk.ReadImage("../TestData/Recon_i0150_103_%03d.nii.gz"%int(keys))
+        im = sitk.ReadImage("../TestData/Recon_SIRT_i1000_s000u180_%03d.nii.gz"%int(keys))
 
         imdict[keys] = sitk.GetArrayFromImage(im)
 
@@ -88,7 +88,7 @@ def main():
 
     for p in processes:
         p.wait()
-    os.system("convert -delay 1.6 ../TestData/gifs/*png ../TestData/gifs/Recon_i150_103.gif; "
+    os.system("convert -delay 1.6 ../TestData/gifs/*png ../TestData/gifs/Recon_SIRT_1000.gif; "
            "rm ../TestData/gifs/*png")
     pass
 

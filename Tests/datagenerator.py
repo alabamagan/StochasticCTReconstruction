@@ -1,12 +1,13 @@
 import numpy as np
 import SimpleITK as sitk
 import skimage.transform as tr
+import matplotlib.pyplot as plt
 import Algorithm.AstraWrapper as awrapper
 import os
 import fnmatch
 import multiprocessing as mp
 
-def Reconstruction(input, outprefix, astraMethod='SIRT_CUDA', iteration=1500):
+def Reconstruction(input, outprefix, astraMethod='SIRT_CUDA', iteration=150):
     """
     Description
     -----------
@@ -22,13 +23,25 @@ def Reconstruction(input, outprefix, astraMethod='SIRT_CUDA', iteration=1500):
 
     spacing = input.GetSpacing()
     npIm = sitk.GetArrayFromImage(input)
+    # npIm[npIm == npIm.min()] = 0
 
     thetas = np.linspace(0, 180, 180)
 
     D = awrapper.Projector()
     D.SetInputImage3D(npIm)
-    D = D.Project(thetas)
+    D = D.Project(thetas, circle_mask=True)
 
+    #============================
+    # Debug
+    #------------
+    # plt.ion()
+    # for i in xrange(D.shape[0]):
+    #     plt.imshow(D[i])
+    #     plt.draw()
+    #     plt.pause(0.2)
+
+    # plt.imshow(D)
+    # plt.show()
     recons = [awrapper.Reconstructor() for i in xrange(3)]
     for i in xrange(3):
         recons[i].SetReconVolumeGeom(imageShape= npIm.shape, circle_mask=True)
@@ -38,11 +51,13 @@ def Reconstruction(input, outprefix, astraMethod='SIRT_CUDA', iteration=1500):
                    '42': recons[1].Recon(astraMethod, iteration),
                    '32': recons[2].Recon(astraMethod, iteration)}
 
+    np.save(outprefix + "_ori", npIm)
     for key in reconImages:
         outname = outprefix + "_%03d"%(int(key))
-        np.savez_compressed(outname, reconImages[key])
+        np.save(outname, reconImages[key])
         print "Saving to ", outname
 
+    # np.savez_compressed(outprefix, [reconImages[key] for key in reconImages])
     pass
 
 def RecursiveSearchDCM(startdir):
@@ -66,28 +81,31 @@ def RecursiveSearchDCM(startdir):
     return matches
 
 def ProcessData(foldername, outputprefix):
-    assert os.path.isdir(foldername), "Folder name incorrect!"
+    if not(os.path.isdir(outputprefix)):
+        os.mkdir(outputprefix)
 
     print "Working on ", foldername
-    fnames = fnmatch.filter(os.listdir(foldername), '*.dcm')
-    fnames = [foldername + "/" + fname for fname in fnames]
-    im = sitk.ReadImage(fnames)
+    reader = sitk.ImageSeriesReader()
+    reader.SetFileNames(reader.GetGDCMSeriesFileNames(foldername))
+    im = reader.Execute()
     Reconstruction(im, outputprefix)
 
-def GenerateData():
-    dirs = RecursiveSearchDCM("/home/lwong/Storage/Data/CTReconstruction/DOI")
+def GenerateData(rootdir, outputdir):
+    dirs = RecursiveSearchDCM(rootdir)
 
-    if not os.path.isdir("/home/lwong/Storage/Data/CTReconstruction/DOI/Output"):
-        os.mkdir("/home/lwong/Storage/Data/CTReconstruction/DOI/Output")
+    # if not os.path.isdir(outputdir):
+    #     os.mkdir(outputdir)
 
     processes = []
-    pool = mp.Pool(processes=7)
+    pool = mp.Pool(processes=8)
     for dir in dirs:
         # print dir + "/Output/" + dir.split('/')[-1]
-        p = pool.apply_async(ProcessData, args=[dir, "/home/lwong/Storage/Data/CTReconstruction/DOI/Output/" + dir.split('/')[-1]])
+        p = pool.apply_async(ProcessData, args=[dir, outputdir + "/" + dir.split('/')[-1]])
         processes.append(p)
 
     for p in processes:
         p.wait()
 
-GenerateData()
+GenerateData("/home/lwong/Storage/Data/CTReconstruction/LCTSC/", "/home/lwong/Storage/Data/CTReconstruction/LCTSC/Output")
+# ProcessData("/home/lwong/Storage/Data/CTReconstruction/LCTSC/LCTSC-Test-S1-101/1.3.6.1.4.1.14519.5.2.1.7014.4598.492964872630309412859177308186/1.3.6.1.4.1.14519.5.2.1.7014.4598.106943890850011666503487579262/",
+#             "/home/lwong/Storage/Data/CTReconstruction/LCTSC/Output/")

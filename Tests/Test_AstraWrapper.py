@@ -9,7 +9,11 @@ def main(*args):
     pro = aw.Projector()
     pro.SetInputImage3D(im)
     projected = pro.Project(np.linspace(0, np.pi, 100), 'parallel3d')
-
+    plt.ion()
+    for i in xrange(projected.shape[0]):
+        plt.imshow(projected[i])
+        plt.draw()
+        plt.pause(0.5)
     re = aw.Reconstructor()
     re.SetInputSinogram(projected, np.linspace(0, np.pi, 100))
     re.SetReconVolumeGeom(imageShape = im.shape)

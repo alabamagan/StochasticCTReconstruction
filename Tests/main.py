@@ -19,6 +19,7 @@ import SimpleITK as sitk
 import skimage.transform as tr
 import Algorithm.AstraWrapper as awrapper
 import os
+import cv2
 
 # Testing
 import matplotlib as mpl
@@ -35,6 +36,10 @@ def SampleImage(prob, sd):
 # Use wat to cal the prior?
 # Current enerty, current probability, GMM trend
 def CalculatePrior(curPro, GMM_half, GMM_full):
+    #--------------------------------------------
+    # Process current probability
+    cv2.bilateralFilter(curPro, 8, 100, 100)
+
     pair = GFitter.GaussianComponenetMatching(GMM_half, GMM_full)
     if len(pair < len(GMM_full)):
         raise ArithmeticError("Matching failed")
@@ -86,29 +91,34 @@ def main(inImage, reconmethod='sklearn', thetas = None, N = 128):
     #--------------------------------------------------------------------
     # Sirt algorithm reconstruction
     if (reconmethod == 'astra'):
-        iterations = 150
+        iterations = 1500
+        astraMethod = 'SIRT_CUDA'
         reconFull = awrapper.Reconstructor()
         reconFull.SetReconVolumeGeom(imageShape=inImage.shape, circle_mask=True)
         reconFull.SetInputSinogram(D, thetas=thetas)
-        reconFull = reconFull.Recon('CGLS3D_CUDA', iterations)
+        reconFull = reconFull.Recon(astraMethod, iterations)
         reconHalf = awrapper.Reconstructor()
         reconHalf.SetReconVolumeGeom(imageShape=inImage.shape, circle_mask=True)
         reconHalf.SetInputSinogram(D[:,::2], thetas=thetas[::2])
-        reconHalf = reconHalf.Recon('CGLS3D_CUDA', iterations)
+        reconHalf = reconHalf.Recon(astraMethod, iterations)
         reconTri = awrapper.Reconstructor()
         reconTri.SetReconVolumeGeom(imageShape=inImage.shape, circle_mask=True)
         reconTri.SetInputSinogram(D[:,::3], thetas=thetas[::3])
-        reconTri = reconTri.Recon('CGLS3D_CUDA', iterations)
+        reconTri = reconTri.Recon(astraMethod, iterations)
         reconQuad = awrapper.Reconstructor()
         reconQuad.SetReconVolumeGeom(imageShape=inImage.shape, circle_mask=True)
         reconQuad.SetInputSinogram(D[:,::4], thetas=thetas[::4])
-        reconQuad = reconQuad.Recon('CGLS3D_CUDA', iterations)
+        reconQuad = reconQuad.Recon(astraMethod, iterations)
 
         reconImages = {'128': reconFull , '42': reconTri, '64': reconHalf, '32': reconQuad}
         for keys in reconImages:
             index = 0
             im = sitk.GetImageFromArray(reconImages[keys])
-            fname = "Recon_i%04d_%03d_%03d"%(iterations, int(thetas.mean()), int(keys))
+            fname = "Recon_%s_i%04d_s%03du%03d_%03d"%(astraMethod,
+                                                      iterations,
+                                                      int(thetas[0]),
+                                                      int(thetas[-1]),
+                                                      int(keys))
             fpath = "../TestData/"
             suffix = ".nii.gz"
             f =  fpath + fname + suffix
@@ -134,7 +144,7 @@ def main(inImage, reconmethod='sklearn', thetas = None, N = 128):
     # # While Tempreture != 0, do while loop
     # trial = None
     # T = 100 #init temperature
-    # E = 1.e31 # float 32 max
+ # E = 1.e31 # float 32 max
     # while(T > 10):
     #     #------------------------------------
     #     # Sample new image configuration
@@ -255,9 +265,11 @@ if __name__ == '__main__':
     input[input == -3024] = 0
 
     N = 128
-    for i in xrange(8):
-        thetas = np.random.rand(N)*180
-        thetas.sort()
+    for i in xrange(5):
+        thetas = np.linspace(np.random.randint(0, 90), np.random.randint(90, 180), N)
 
         p = Process(target=main, args=[input, 'astra', thetas])
         p.start()
+
+    p = Process(target=main, args=[input, 'astra', np.linspace(0, 1+80, 180)])
+    p.start()

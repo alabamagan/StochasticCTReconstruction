@@ -20,15 +20,17 @@ class Projector(object):
           Algorithm takes on the values:
             - 'parallel3d'
 
+
         :param thetas np.ndarray:
         :param algorithm str: Select from {'parallel3d'}
         :return:
         """
         #--------------------------------------------------------------------
         # Create Circular mask
+        self._circle_mask = False
         if (kwargs.has_key('circle_mask')):
             if (kwargs['circle_mask']):
-                self.circle_mask = True
+                self._circle_mask = True
 
 
         self._Project(thetas, algorithm)
@@ -69,17 +71,16 @@ class Projector(object):
 
         #--------------------------------------------------------------------
         # Create Circular mask
-        if (kwargs.has_key('circle_mask')):
-            if (kwargs['circle_mask']):
-                center = np.array([zSize, ySize, xSize])/2.
-                x, y, z = np.meshgrid(self._image.shape[0],
-                                      self._image.shape[1],
-                                      self._image.shape[2])
-                mask = (y - center[1])**2 + \
-                       (x- center[2])**2 < ((y+1)/2.)**2
-                mask = not mask
-                self._image[mask] = 0
-                astra.data3d.store(self._imageVol, self._image)
+        if (self._circle_mask):
+            center = np.array([self._zSize, self._ySize, self._xSize])/2.
+            y, z, x = np.meshgrid(np.arange(self._ySize),
+                                  np.arange(self._zSize),
+                                  np.arange(self._xSize))
+            mask = (y - center[1])**2 + \
+                   (x - center[2])**2 < ((self._ySize+1)/2.)**2
+            mask = mask == False
+            self._image[mask] = 0
+            astra.data3d.store(self._imageVol, self._image)
 
 
         if (self._proj_id):

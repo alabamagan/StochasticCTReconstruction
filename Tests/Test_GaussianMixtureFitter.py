@@ -38,11 +38,11 @@ def TestFitter2():
     y = np.sum(np.array([params[i][0] * GFitter.Gaussian(x, params[i][1], params[i][2])
                          for i in xrange(numOfGaussians)]), axis=0)
 
-    res = GFitter.SKLearnFitter(y, inDomain=x, numOfGaussians=numOfGaussians)
+    res = GFitter.SKLearnFitter(y, numOfGaussians=numOfGaussians)
 
     resy = np.sum(np.array([res[i][0] * GFitter.Gaussian(x, res[i][1], res[i][2])
                          for i in xrange(numOfGaussians)]), axis=0)
-
+    print res
 
     plt.plot(x, y)
     plt.plot(x, resy)
