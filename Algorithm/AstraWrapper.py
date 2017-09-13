@@ -54,6 +54,7 @@ class Projector(object):
         self._xSize = im.shape[2]
         self._ySize = im.shape[1]
         self._zSize = im.shape[0]
+        print self._xSize, self._ySize, self._zSize
 
         if (self._imageVol):
             astra.data3d.delete(self._imageVol)
@@ -65,9 +66,6 @@ class Projector(object):
         if (not self._imageVol):
             raise BufferError("self._imageVol was not created")
             return
-
-        proj_geom = proj_geom = astra.create_proj_geom(
-            algorithm, 1., 1., self._zSize, int(np.ceil(np.sqrt(2*self._ySize**2))), thetas)
 
         #--------------------------------------------------------------------
         # Create Circular mask
@@ -81,6 +79,59 @@ class Projector(object):
             mask = mask == False
             self._image[mask] = 0
             astra.data3d.store(self._imageVol, self._image)
+
+        if (algorithm in ['parallel', 'cone']):
+            self._Project3D(thetas, algorithm)
+        elif (algorithm == 'fanbeam'):
+            self._Project2DTo3D(thetas, algorithm)
+
+    def _Project2DTo3D(self, thetas, algorithm):
+        if algorithm == 'fanbeam' >= 0:
+            proj_geom = astra.create_proj_geom(
+                'fanflat',
+                1,
+                int((self._xSize**2 + self._ySize**2)**0.5),
+                thetas,
+                (self._xSize**2 + self._ySize**2)**0.5 *2.,
+                (self._xSize**2 + self._ySize**2)**0.5 /2.
+                )
+        else:
+            print "Error! algorithm has incorrect input"
+
+        subvol_geom = astra.create_vol_geom(self._xSize, self._ySize)
+        self._proj_array = None
+        for i in xrange(self._zSize):
+            subproj_id = astra.create_projector('cuda', proj_geom, subvol_geom)
+            self._proj_id, self._proj_data = astra.create_sino(self._image[i], subproj_id)
+            s = self._proj_data.shape
+            if (self._proj_array is None):
+                self._proj_array = self._proj_data.reshape(1, s[0], s[1])
+            else:
+                self._proj_array = np.concatenate([self._proj_array, self._proj_data.reshape(1,s[0], s[1])], 0)
+            astra.projector.delete(subproj_id)
+            astra.data2d.delete(self._proj_id)
+
+
+    def _Project3D(self, thetas, algorithm):
+        if (algorithm.find('parallel') >= 0):
+            proj_geom = astra.create_proj_geom(
+                algorithm,
+                1.,
+                1.,
+                self._zSize,
+                int(np.ceil(np.sqrt(2*self._ySize**2))),
+                thetas)
+        elif algorithm.find('cone') >= 0:
+            proj_geom = astra.create_proj_geom(
+                'cone',
+                1., # spacing x
+                1., # spacing y
+                self._zSize,
+                int(np.ceil(np.sqrt(2*self._ySize**2))),
+                thetas,
+                int(np.ceil(np.sqrt(2*self._ySize**2))) *2., # dist_source_origin
+                int(np.ceil(np.sqrt(2*self._ySize**2))) /2. # dist_origin_det
+                )
 
 
         if (self._proj_id):
@@ -151,27 +202,51 @@ class Reconstructor(object):
                        (meshgridX - center[2])**2 < ((ySize+1)/2.)**2
                 im = np.zeros([zSize, ySize, xSize])
                 im[mask] = 255
-                im = sitk.GetImageFromArray(im)
+                # im = sitk.GetImageFromArray(im)
                 # sitk.WriteImage(im, "../TestData/mask.nii.gz")
                 self._mask_id = astra.data3d.create('-vol', vol_geom, mask)
+                self._mask = mask
 
         self._vol_geom = vol_geom
         self._rec_id = astra.data3d.create('-vol', vol_geom)
 
-    def SetInputSinogram(self, sino, thetas):
+    def SetInputSinogram(self, sino, thetas, algorithm='parallel3d'):
         if(self._sino_id >= 0):
             astra.data3d.delete(self._sino_id)
 
-        if (type(sino) == np.ndarray):
+        self._sinoInput = sino
+
+        if (isinstance(sino, np.ndarray)):
+            # Process into into an astra geom if it is ndarray
             imshape = sino.shape
             xSize = imshape[1]
             ySize = imshape[2]
             zSize = imshape[0]
-            proj_geom = astra.create_proj_geom('parallel3d', 1., 1.,
-                                               zSize, ySize,
-                                               thetas)
-            self._sino_id = astra.data3d.create('-proj3d', proj_geom)
-            astra.data3d.store(self._sino_id, sino)
+            if (algorithm == 'parallel3d'):
+                proj_geom = astra.create_proj_geom('parallel3d', 1., 1.,
+                                                   zSize, ySize,
+                                                   thetas)
+                self._sino_id = astra.data3d.create('-proj3d', proj_geom)
+                astra.data3d.store(self._sino_id, sino)
+            elif (algorithm == 'cone'):
+                proj_geom = astra.create_proj_geom('cone',
+                                                   1.,
+                                                   1.,
+                                                   zSize,
+                                                   ySize,
+                                                   thetas,
+                                                   int(np.ceil(np.sqrt(2*ySize**2))) *2.,
+                                                   int(np.ceil(np.sqrt(2*ySize**2))) /2. # dist_origin_det
+                                                   )
+                self._sino_id = astra.data3d.create('-proj3d', proj_geom)
+                astra.data3d.store(self._sino_id, sino)
+
+            elif (algorithm == 'fanbeam'):
+                # Pass variable to _Recon2Dto3D method
+                self._proj_geom = None
+                self._sino_id = sino
+                self._thetas = thetas
+
         elif (type(sino) == int):
             self._sino_id = sino
         pass
@@ -190,18 +265,77 @@ class Reconstructor(object):
         :return:
         """
 
-        cfg = astra.astra_dict('CGLS3D_CUDA')
+        #==============================================================
+        # Different handling for fan and parallel
+        #-----------------------------------------------------------
+        if isinstance(self._sino_id, int):
+            output = self._Recon3D(iterations, algorithm)
+        elif isinstance(self._sino_id, np.ndarray):
+            output = self._Recon2DTo3D(iterations, algorithm)
+        return output
+
+    def _Recon2DTo3D(self, iterations, algorithm):
+        """
+        Descriptions
+        ------------
+          Reconstructino slice by slice
+        :param int iterations:
+        :return:
+        """
+
+        # Delete some geom which will not be used
+        astra.data3d.delete(self._rec_id)
+        astra.data3d.delete(self._mask_id)
+
+        output = None
+        for i in xrange(self._sinoInput.shape[0]):
+            # Create mask
+            if isinstance(self._mask, np.ndarray):
+                mask_size = self._mask.shape
+
+            proj_geom = astra.create_proj_geom('fanflat',
+                                               1,
+                                               # mask_size[0],
+                                               int((mask_size[1]**2 + mask_size[2]**2)**0.5),
+                                               self._thetas,
+                                               (mask_size[1]**2 + mask_size[2]**2)**0.5 *2.,
+                                               (mask_size[1]**2 + mask_size[2]**2)**0.5 /2.
+                                               )
+            vol_geom = astra.create_vol_geom(mask_size[1], mask_size[2])
+            mask_id = astra.data2d.create('-vol', vol_geom, self._mask[i])
+            rec_id = astra.data2d.create('-vol', vol_geom)
+            sino_id = astra.data2d.create('-sino', proj_geom, self._sinoInput[i])
+
+            cfg = astra.astra_dict(algorithm)
+            cfg['ReconstructionDataId'] = rec_id
+            cfg['ProjectionDataId'] = sino_id
+            if (mask_id >= 0):
+                cfg['option'] = {}
+                cfg['option']['ReconstructionMaskId'] = mask_id
+            alg_id = astra.algorithm.create(cfg)
+            astra.algorithm.run(alg_id, iterations)
+            if (output == None):
+                output = astra.data2d.get(rec_id).reshape(1, mask_size[1], mask_size[2])
+            else:
+                output = np.concatenate([output, astra.data2d.get(rec_id).reshape(1, mask_size[1], mask_size[2])], 0)
+
+            astra.data2d.delete(mask_id)
+            astra.data2d.delete(rec_id)
+            astra.data2d.delete(alg_id)
+            astra.data2d.delete(sino_id)
+
+        return output
+
+    def _Recon3D(self, iterations, algorithm):
+        cfg = astra.astra_dict(algorithm)
         cfg['ReconstructionDataId'] = self._rec_id
         cfg['ProjectionDataId'] = self._sino_id
         if (self._mask_id >= 0):
             cfg['option'] = {}
             cfg['option']['ReconstructionMaskId'] = self._mask_id
-
         self._alg_id = astra.algorithm.create(cfg)
         astra.algorithm.run(self._alg_id, iterations)
-
         output = astra.data3d.get(self._rec_id)
-
         # Release GRAM
         astra.algorithm.delete(self._alg_id)
         astra.data3d.delete(self._sino_id)
